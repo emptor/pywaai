@@ -23,8 +23,6 @@ import argparse
 import asyncio
 import uvicorn
 
-mng = "EAAXiFHiqNhwBOy6fVuQXWyybH237mtkFZCT36NgwdlrYLeauG5qL3EZATg5OVuetBDO5hJlxJBB8wXWDs4QSDEjoNkAmzXjAKuZANj4oZBL8r7gyM0MGgMZCRADlZBsTmUagOwFc1PlEY01ZAZB9k6g7sJqi3E8e1lKohsOv7ByZAdTMMPih5FS8ngJryo9d9vzrS3QXbTZCs5UmSes5odvTRv1ZAxUCKaA9VjzQtJC2YTS"
-
 
 app = FastAPI()
 

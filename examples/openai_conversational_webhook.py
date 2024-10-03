@@ -60,14 +60,6 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 # Initialize FastAPI app
 app = FastAPI()
 
-# WhatsApp configuration
-phone_id = "392248423969335"
-app_id = 1655952435197468
-app_secret = "9bfe44b4a12ba3f793282a6136203eea"
-verify_token = "ABD361"
-callback_url = "https://whatsapp.emptor-cdn.com"
-business_account_id = "391057337423244"
-verify_timeout = 10
 
 # Initialize WhatsApp client
 wa = WhatsApp(

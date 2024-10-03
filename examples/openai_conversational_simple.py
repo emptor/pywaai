@@ -7,22 +7,33 @@ from pywa.types import Message
 
 flask_app = flask.Flask(__name__)
 
-# Make sure to replace these with your actual credentials
+mng = os.environ.get("WHATSAPP_MANAGER_TOKEN")
+
+
+app = FastAPI()
+
+
 wa = WhatsApp(
-    phone_id="your_phone_number",
-    token="your_token",
-    server=flask_app,
-    verify_token="xyzxyz",
+    token=mng,
+    phone_id=phone_id,
+    app_id=app_id,
+    app_secret=app_secret,  # Required for validation
+    server=app,
+    verify_token=verify_token,
+    callback_url=callback_url,  # Replace with your public callback URL
+    business_account_id=business_account_id,
+    verify_timeout=10,
 )
 
 client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
 
 async def get_openai_response(message: str) -> str:
     """
     Requests a response from OpenAI based on the input message.
     """
     response = await client.chat.completions.create(
-        model="gpt-4o-latest",  
+        model="gpt-4o-latest",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": message},
@@ -30,6 +41,7 @@ async def get_openai_response(message: str) -> str:
         max_tokens=150,  # Adjust based on expected response length
     )
     return response.choices[0].message.content.strip()
+
 
 @wa.on_message()
 async def respond_message(_: WhatsApp, msg: Message):
@@ -41,7 +53,10 @@ async def respond_message(_: WhatsApp, msg: Message):
         msg.reply_text(response)
     except Exception as e:
         logging.error(f"Error getting response from OpenAI: {e}")
-        msg.reply_text("Sorry, I couldn't generate a response right now. Please try again later.")
+        msg.reply_text(
+            "Sorry, I couldn't generate a response right now. Please try again later."
+        )
+
 
 # Run the server
 if __name__ == "__main__":

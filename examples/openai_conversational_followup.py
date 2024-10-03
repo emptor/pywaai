@@ -22,14 +22,6 @@ openai_api_key = os.environ.get("OPENAI_API_KEY")
 
 app = FastAPI()
 
-# WhatsApp setup
-phone_id = "392248423969335"
-app_id = 1655952435197468
-app_secret = "9bfe44b4a12ba3f793282a6136203eea"
-verify_token = "ABD361"
-callback_url = "https://whatsapp.emptor-cdn.com"
-business_account_id = "391057337423244"
-verify_timeout = 10
 
 wa = WhatsApp(
     token=mng,

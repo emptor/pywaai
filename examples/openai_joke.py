@@ -17,6 +17,7 @@ wa = WhatsApp(
 
 client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+
 async def get_joke() -> str:
     """
     Requests a joke from ChatGPT.
@@ -27,9 +28,10 @@ async def get_joke() -> str:
             {"role": "system", "content": "You are a funny joke-telling bot."},
             {"role": "user", "content": "Tell me a joke."},
         ],
-        max_tokens=150,  # Adjust based on expected joke length 
+        max_tokens=150,  # Adjust based on expected joke length
     )
     return response.choices[0].message.content.strip()
+
 
 @wa.on_message(filters.command("joke"))
 async def tell_joke(_: WhatsApp, msg: Message):
@@ -42,6 +44,7 @@ async def tell_joke(_: WhatsApp, msg: Message):
     except Exception as e:
         logging.error(f"Error getting joke from ChatGPT: {e}")
         msg.reply_text("Sorry, I couldn't find a joke right now. Try again later.")
+
 
 # Run the server
 if __name__ == "__main__":
