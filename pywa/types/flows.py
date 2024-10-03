@@ -54,6 +54,7 @@ __all__ = [
     "TextSubheading",
     "TextBody",
     "TextCaption",
+    "RichText",
     "FontWeight",
     "TextInput",
     "InputType",
@@ -1048,6 +1049,7 @@ class Screen:
          the back button while on this screen (Read more at `developers.facebook.com <https://developers.facebook.com/docs/whatsapp/flows/reference/flowjson#additional-information-on-refresh-on-back>`_).
         layout: Associated screen UI Layout that is shown to the user (Read more at `developers.facebook.com <https://developers.facebook.com/docs/whatsapp/flows/reference/flowjson#layout>`_).
         success: To indicate whether terminating on that screen results in a successful flow completion.
+        sensitive: This array contains the names of the fields in the screen that contain sensitive data, and should be hidden in the response summary displayed to the user. (added in v5.1)
     """
 
     id: str
@@ -1057,6 +1059,7 @@ class Screen:
     success: bool | None = None
     refresh_on_back: bool | None = None
     layout: Layout
+    sensitive: Iterable[str] | None = None
 
     def __post_init__(self):
         if not self.data or isinstance(self.data, dict):
@@ -1166,6 +1169,7 @@ class ComponentType(utils.StrEnum):
     TEXT_SUBHEADING = "TextSubheading"
     TEXT_BODY = "TextBody"
     TEXT_CAPTION = "TextCaption"
+    RICH_TEXT = "RichText"
     TEXT_INPUT = "TextInput"
     TEXT_AREA = "TextArea"
     CHECKBOX_GROUP = "CheckboxGroup"
@@ -1478,7 +1482,7 @@ class TextHeading(TextComponent):
         >>> TextHeading(text='Heading', visible=True)
 
     Attributes:
-        text: The text of the heading. Limited to 4096 characters. Can be dynamic.
+        text: The text of the heading. Limited to 80 characters. Can be dynamic.
         visible: Whether the heading is visible or not. Default to ``True``, Can be dynamic.
     """
 
@@ -1501,7 +1505,7 @@ class TextSubheading(TextComponent):
         >>> TextSubheading(text='Subheading', visible=True)
 
     Attributes:
-        text: The text of the subheading. Limited to 60 characters. Can be dynamic.
+        text: The text of the subheading. Limited to 80 characters. Can be dynamic.
         visible: Whether the subheading is visible or not. Default to ``True``, Can be dynamic.
     """
 
@@ -1529,7 +1533,8 @@ class TextBody(TextComponent):
         ... )
 
     Attributes:
-        text: The text of the body. Limited to 80 characters. Can be dynamic.
+        text: The text of the body. Limited to 4096 characters. Can be dynamic.
+        markdown: Whether the text is markdown or not (Added in v5.1).
         font_weight: The weight of the text. Can be dynamic.
         strikethrough: Whether the text is strikethrough or not. Can be dynamic.
         visible: Whether the body is visible or not. Default to ``True``, Can be dynamic.
@@ -1538,7 +1543,8 @@ class TextBody(TextComponent):
     type: ComponentType = dataclasses.field(
         default=ComponentType.TEXT_BODY, init=False, repr=False
     )
-    text: str | DataKey | FormRef
+    text: str | Iterable[str] | DataKey | FormRef
+    markdown: bool | None = None
     font_weight: FontWeight | str | DataKey | FormRef | None = None
     strikethrough: bool | str | DataKey | FormRef | None = None
     visible: bool | str | DataKey | FormRef | None = None
@@ -1561,7 +1567,8 @@ class TextCaption(TextComponent):
 
 
     Attributes:
-        text: The text of the caption. Limited to 4096 characters. Can be dynamic.
+        text: The text of the caption (array of strings supported since v5.1). Limited to 4096 characters. Can be dynamic.
+        markdown: Whether the text is markdown or not (Added in v5.1).
         font_weight: The weight of the text. Can be dynamic.
         strikethrough: Whether to strike through the text or not. Can be dynamic.
         visible: Whether the caption is visible or not. Default to ``True``, Can be dynamic.
@@ -1570,9 +1577,58 @@ class TextCaption(TextComponent):
     type: ComponentType = dataclasses.field(
         default=ComponentType.TEXT_CAPTION, init=False, repr=False
     )
-    text: str | DataKey | FormRef
+    text: str | Iterable[str] | DataKey | FormRef
+    markdown: bool | None = None
     font_weight: FontWeight | str | DataKey | FormRef | None = None
     strikethrough: bool | str | DataKey | FormRef | None = None
+    visible: bool | str | DataKey | FormRef | None = None
+
+
+@dataclasses.dataclass(slots=True, kw_only=True)
+class RichText(TextComponent):
+    """
+    Represents text that is displayed as a rich text.
+
+    - Read more at `developers.facebook.com <https://developers.facebook.com/docs/whatsapp/flows/reference/flowjson/components#richtext>`_.
+    - The goal of the component is to provide a rich formatting capabilities and introduce the way to render large texts (Terms of Condition, Policy Documents, User Agreement and etc) without facing limitations of basic text components (TextHeading, TextSubheading, TextBody and etc)
+    - RichText component utilizes a select subset of the Markdown specification. It adheres strictly to standard Markdown syntax without introducing any custom modifications. Content created for the RichText component is fully compatible with standard Markdown documents.
+    - Added in v5.1.
+
+    Example:
+
+        >>> RichText(
+        ...     text=[
+        ...         "# Heading 1",
+        ...         "## Heading 2",
+        ...         "Let’s make a **bold** statement",
+        ...         "Let's make this text *italic*",
+        ...         "Let's make this text ~~Strikethrough~~",
+        ...         "This text is ~~***really important***~~",
+        ...         "This is a [pywa docs](https://pywa.readthedocs.io/)",
+        ...         "This is a ordered list:",
+        ...         "1. Item 1",
+        ...         "2. Item 2",
+        ...         "This is a unordered list:",
+        ...         "- Item 1",
+        ...         "- Item 2",
+        ...         "![image](data:image/png;base64,<base64 content>)",
+        ...         "| Tables        | Are           | Cool  |",
+        ...         "| ------------- | ------------- | ----- |",
+        ...         "| col 3 is      | right-aligned | $1600 |",
+        ...         "| col 2 is      | centered      |   $12 |",
+        ...     ],
+        ... )
+
+
+    Attributes:
+        text: The markdown text (array of strings supported). Limited to 4096 characters. Can be dynamic.
+        visible: Whether the caption is visible or not. Default to ``True``, Can be dynamic.
+    """
+
+    type: ComponentType = dataclasses.field(
+        default=ComponentType.RICH_TEXT, init=False, repr=False
+    )
+    text: str | Iterable[str] | DataKey | FormRef
     visible: bool | str | DataKey | FormRef | None = None
 
 
