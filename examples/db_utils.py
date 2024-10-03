@@ -136,8 +136,8 @@ class ConversationHistory:
         else:
             self.message_cache[phone_number] = await self.__getitem__(phone_number)
 
-    def read(self, phone_number: str):
-        conversation = asyncio.run(self[phone_number])
+    async def read(self, phone_number: str):
+        conversation = await self[phone_number]
         for message in conversation:
             role = message["role"]
             content = message["content"]
@@ -342,8 +342,8 @@ class EncryptedConversationHistory(ConversationHistory):
         else:
             self.message_cache[phone_number] = await self.__getitem__(phone_number)
 
-    def read(self, phone_number: str):
-        conversation = asyncio.run(self[phone_number])
+    async def read(self, phone_number: str):
+        conversation = await self[phone_number]
         for message in conversation:
             role = message["role"]
             content = message["content"]
