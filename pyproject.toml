@@ -41,7 +41,7 @@ classifiers = [
 
 [project.optional-dependencies]
 flask = ["flask[async]"]
-fastapi = ["fastapi", "uvicorn[standard]"]
+fastapi = ["fastapi[standard]"]
 cryptography = ["cryptography"]
 
 [project.urls]
