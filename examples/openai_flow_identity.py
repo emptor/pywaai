@@ -4,34 +4,49 @@ from fastapi import FastAPI, HTTPException
 import uvicorn
 from openai import AsyncOpenAI
 from pywa import WhatsApp
-from pywa.types import Message, FlowButton
+from pywa.types import Message, FlowButton, Template, FlowActionType
 from pywa.types.flows import FlowRequest, FlowResponse, FlowStatus, FlowActionType
 from pydantic import BaseModel
 import uuid
 from collections import defaultdict
 import httpx
+import asyncio
 
-
-mng = os.environ.get("WHATSAPP_API_KEY")
+mng = os.environ.get("WA_TOKEN")
 app = FastAPI()
 
 
+phone_id = os.getenv("WA_PHONE_ID")
+
+app_id = os.getenv("WA_APP_ID")
+app_secret = os.getenv("WA_APP_SECRET")
+verify_token = os.getenv("WA_VERIFY_TOKEN")
+callback_url = f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}"
+business_account_id = os.getenv("WA_BUSINESS_ACCOUNT_ID")
+
+business_private_key = open(
+    "/Users/gabrielpuliatti/code/soldev_new/soldev/ibk-private.pem"
+).read()
 business_private_key_password = os.getenv("IBK_PASSWORD")
 
 wa = WhatsApp(
     token=mng,
     phone_id=phone_id,
-    app_id=app_id,
+    app_id="1655952435197468",
     app_secret=app_secret,  # Required for validation
     server=app,
     verify_token=verify_token,
     callback_url=callback_url,  # Replace with your public callback URL
-    business_account_id=business_account_id,
-    # verify_timeout=10,
+    business_account_id="122194765761195",
+    verify_timeout=10,
     business_private_key=business_private_key,
     business_private_key_password=business_private_key_password,
 )
 openai_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+wa.set_business_public_key(
+    open("/Users/gabrielpuliatti/code/soldev_new/soldev/ibk.pem").read()
+)
 
 
 # Replace the current phone_state with a class
@@ -80,7 +95,7 @@ async def respond_message(_: WhatsApp, msg: Message):
         text="Welcome to our app! Click the button below to login or sign up",
         buttons=FlowButton(
             title="Sign Up",
-            flow_id="2859263487560485",
+            flow_id="504095399172622",
             flow_token=flow_token,
             mode=FlowStatus.DRAFT,
             flow_action_type=FlowActionType.NAVIGATE,
@@ -89,7 +104,7 @@ async def respond_message(_: WhatsApp, msg: Message):
     )
 
 
-@wa.on_flow_request("/identify-peru")
+@wa.on_flow_request("/identify")
 async def on_identify_request(
     _: WhatsApp, flow_request: FlowRequest
 ) -> FlowResponse | None:
@@ -98,6 +113,7 @@ async def on_identify_request(
         return
     else:
         data = flow_request.data
+        print(data)
         if not isinstance(data, dict):
             logger.error("Flow request data is not a dictionary")
             return
@@ -129,16 +145,78 @@ async def on_identify_request(
                 logger.error("Person ID not found in API response")
                 return
 
-            # Save the mapping of phone number to person_id
+            print(person_id)
             phone_state.set_person_id(phone_number, person_id)
 
             logger.info(f"phone_state: {phone_state.get_state(phone_number)}")
+
+            asyncio.create_task(poll_person_status(person_id, phone_number))
+
+            async def send_delayed_message():
+                """
+                This function sends a message to the user after 30 seconds.
+                This is so that the user has time to click on the "complete" button in the Flow.
+                We probably should do something more robust here, like handling the flow completion in the callback.
+                """
+                await asyncio.sleep(30)
+                wa.send_message(
+                    to=phone_number,
+                    text="Estamos validando la información entregada. Recibirá una notificación cuando el proceso esté completo.",
+                )
+
+            asyncio.create_task(send_delayed_message())
 
             return FlowResponse(
                 version=flow_request.version,
                 screen="LOGIN_SUCCESS",
                 data={"document_id": document_id, "person_id": person_id},
             )
+
+
+async def poll_person_status(person_id: str, phone_number: str):
+    """
+    Polls the status of a person_id every minute and notifies the user when the status changes.
+    """
+    api_key = os.getenv("GABRIEL_API_KEY") or ""
+    headers = {
+        "X-Api-Key": api_key,
+        "accept": "application/json",
+    }
+    status_url = f"https://api.emptor.io/v3/pe/persons/{person_id}/status"
+
+    while True:
+        await asyncio.sleep(60)  # Wait for 60 seconds before each poll
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(status_url, headers=headers)
+            if response.status_code != 200:
+                logger.error(
+                    f"Failed to fetch status for person_id {person_id}: {response.text}"
+                )
+                continue  # Retry on failure
+
+            status_data = response.json()
+            status = status_data.get("status")
+
+            if status and status != "PENDING":
+                if status == "INCOMPLETE":
+                    wa.send_message(
+                        to=phone_number,
+                        text="No se pudo validar su identificación.",
+                    )
+                else:
+                    wa.send_message(
+                        to=phone_number,
+                        text="Pudimos validar su identificación y le entregaremos los resultados al contratante.",
+                    )
+                logger.info(
+                    f"Status for person_id {person_id} is {status}. Notified user."
+                )
+                break
+
+            logger.info(f"Status for person_id {person_id} is still PENDING.")
+
+    del phone_state.person_id_to_phone[person_id]
 
 
 class CallbackRequest(BaseModel):
@@ -153,31 +231,27 @@ class CallbackRequest(BaseModel):
     reports: dict
 
 
-@app.post("/callback")
-async def callback(request: CallbackRequest):
-    """
-    Webhook callback endpoint to handle the response from bgcapi.
-    """
-    print(request.dict())
-    try:
-        person_id = request.id
-        status = request.status
-
-        # Find the phone number associated with the person_id
-        phone_number = phone_state.get_phone_by_person_id(person_id)
-        if phone_number:
-            # Send the status back to the user
-            wa.send_message(to=phone_number, text=f"Status: {status}")
-            return {"status": "success", "message": "Status sent to user"}
-        return {"status": "error", "message": "Conversation not found"}
-    except HTTPException as e:
-        logger.error(f"Error in callback: {e.status_code}: {e.detail}")
-        return {"status": "error", "message": "Conversation not found"}
-    except Exception as e:
-        logger.error(f"Error in callback: {e}")
-        return {"status": "error", "message": "Internal Server Error"}
-
-
 # Run the server
 if __name__ == "__main__":
+    example_phone_number = "51901171469"
+    example_flow_token = str(uuid.uuid4())
+    phone_state.add_flow_token(example_phone_number, example_flow_token)
+
+    wa.send_template(
+        to=example_phone_number,
+        template=Template(
+            name="basic_form_customer",
+            language=Template.Language.SPANISH,
+            header=Template.Image(
+                image="https://i.ibb.co/kKypp0L/Solcito-Cartoon-1.png"
+            ),
+            body=[
+                Template.TextValue(value="Walmart"),
+            ],
+            buttons=Template.FlowButton(
+                flow_token=example_flow_token,
+            ),
+        ),
+    )
+
     uvicorn.run(app, host="0.0.0.0", port=8080)
