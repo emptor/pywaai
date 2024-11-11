@@ -2,7 +2,7 @@
 
 ________________________
 
-**PywAI is a simple asynchronous framework (based on PyWA) to enable the creation of AI agents and bots on Whatsapp. 
+**PywAI is a simple asynchronous framework (based on PyWA) to enable the creation of AI agents and bots on Whatsapp.**
 
 📄 **Quick Documentation Index**
 --------------------------------
