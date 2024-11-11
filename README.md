@@ -1,4 +1,4 @@
-# [PyWa](https://github.com/emptor/pywai) • Python AI wrapper for the WhatsApp Cloud API
+# [PywAI](https://github.com/emptor/pywai) • Python AI wrapper for the WhatsApp Cloud API
 
 ________________________
 
