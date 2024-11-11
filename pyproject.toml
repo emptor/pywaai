@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-version = {attr = "pywa.__version__"}
+version = {attr = "pywai.__version__"}
 readme = {file = "README.md", content-type = "text/markdown"}
 dependencies = {file = "requirements.txt"}
 
@@ -12,16 +12,17 @@ include = ["pywa*"]
 exclude = ["tests*"]
 
 [project]
-name = "pywa"
-description = "Python wrapper for the WhatsApp Cloud API"
+name = "pywai"
+description = "Python AI wrapper for the WhatsApp Cloud API"
 dynamic = ["version", "readme", "dependencies"]
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [
     {name = "David Lev", email = "david@davidlev.dev"},
+    {name = "Gabriel Puliatti", email = "gabriel@emptor.io"},
 ]
 keywords = ["whatsapp", "whatsapp-api", "whatsapp-cloud-api", "whatsapp-cloud", "whatsapp-api-python",
-    "whatsapp-cloud-api-python", "pywa", "wapy", "wa", "wa-api", "wa-cloud-api", "wa-cloud", "wa-api-python",
+    "whatsapp-cloud-api-python", "pywai", "whatsapp-ai-python", "pywa", "wapy", "wa", "wa-api", "wa-cloud-api", "wa-cloud", "wa-api-python",
     "wa-cloud-api-python", "whatsapp-webhook", "whatsapp-webhook-python", "whatsapp-webhook-api", "whatsapp-flows",
     "whatsapp-cloud-api-flows"
 ]
@@ -43,13 +44,6 @@ classifiers = [
 flask = ["flask[async]"]
 fastapi = ["fastapi[standard]"]
 cryptography = ["cryptography"]
-
-[project.urls]
-"Documentation" = "https://pywa.readthedocs.io/"
-"Issue Tracker" = "https://github.com/david-lev/pywa/issues"
-"Source Code" = "https://github.com/david-lev/pywa"
-"Funding" = "https://github.com/sponsors/david-lev"
-"Changelog" = "https://github.com/david-lev/pywa/blob/master/CHANGELOG.md"
 
 [tool.ruff.lint]
 ignore = ["E731", "F401", "E402", "F405"]
