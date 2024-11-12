@@ -3,16 +3,16 @@ requires = ["setuptools>=68.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-version = {attr = "pywai.__version__"}
+version = {attr = "pywaai.__version__"}
 readme = {file = "README.md", content-type = "text/markdown"}
 dependencies = {file = "requirements.txt"}
 
 [tool.setuptools.packages.find]
-include = ["pywa*", "pywai*"]
+include = ["pywa*", "pywaai*"]
 exclude = ["tests*"]
 
 [project]
-name = "pywai"
+name = "pywaai"
 description = "Python AI wrapper for the WhatsApp Cloud API"
 dynamic = ["version", "readme", "dependencies"]
 license = { text = "MIT" }
@@ -44,6 +44,8 @@ classifiers = [
 flask = ["flask[async]"]
 fastapi = ["fastapi[standard]"]
 cryptography = ["cryptography"]
+loguru = ["loguru"]
+logfire = ["logfire"]
 
 [tool.ruff.lint]
 ignore = ["E731", "F401", "E402", "F405"]

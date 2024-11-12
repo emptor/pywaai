@@ -4,21 +4,22 @@ from pydantic import BaseModel, Field
 from typing import List
 import os
 from pywa import WhatsApp
-from pywa.types import Message
-from typing import List, AsyncGenerator, Dict, Any, Optional, Type
-from db_utils import ConversationHistory
+from typing import List, Dict, Optional, Type
+from .conversation_db import ConversationHistory
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from openai import AsyncOpenAI
 from instructor import OpenAISchema
 
-
 try:
-    from loguru import logger
+    import logfire as logger
+    logger.configure()
 except ImportError:
-    import logging
-
-    logger = logging.getLogger(__name__)
+    try:
+        from loguru import logger
+    except ImportError:
+        import logging
+        logger = logging.getLogger(__name__)
 
 shortener_tokens_used = 0
 
@@ -75,29 +76,24 @@ async def get_shorter_responses(response: str) -> List[str]:
         return [response]
 
 
-import uvicorn
-import argparse
-import asyncio
-
-
 async def send_message(wa_client: WhatsApp, phone_number: str, message: str = ""):
     print(message)
     if message:
         wa_client.send_message(to=phone_number, text=message)
     else:
-        response = await get_chatgpt_response(phone_number, "")
-        print(response)
+        responses = await generate_response(
+            conversation_history=ConversationHistory(),
+            phone_number=phone_number,
+            message_text="",
+            user_name="",
+            system_prompt="You are a helpful assistant.",
+            model="gpt-4o",
+        )
 
-        if len(response) > 300:
-            parts = await get_shorter_responses(response)
-        else:
-            parts = [response]
-
-        logger.info(f"SENT,{phone_number},{response}")
-
-        for part in parts:
-            print(part)
-            wa_client.send_message(to=phone_number, text=part)
+        for response in responses:
+            print(response["content"])
+            wa_client.send_message(to=phone_number, text=response["content"])
+            logger.info(f"SENT,{phone_number},{response['content']}")
 
 
 async def execute_tools(tool_calls, tool_functions):
@@ -105,19 +101,17 @@ async def execute_tools(tool_calls, tool_functions):
     for call in tool_calls:
         for func in tool_functions:
             if func.__name__ == call.function.name:
-                # Parse the arguments from the function call
                 args = eval(call.function.arguments)
-                # Create an instance of the class and run it
                 result = func(**args).run()
                 results.append(result)
     return results if results else None
 
 
 async def generate_response(
-    message: Message,
     conversation_history: ConversationHistory,
     phone_number: str,
-    message_text: Optional[str] = None,  # Accept message_text as a parameter
+    message_text: str,
+    user_name: str,
     timezone: str = "America/Lima",
     system_prompt: str = "You are a helpful assistant.",
     model: str = "gpt-4o",
@@ -136,17 +130,14 @@ async def generate_response(
         system_prompt
         + f" Today's date is {formatted_date}."
         + f" The user's phone number is: {phone_number}."
-        + f" The user's name is: {message.from_user.name}."
+        + f" The user's name is: {user_name}."
     )
 
     messages = [
         {"role": "system", "content": system_prompt_formatted},
     ]
     messages.extend(await conversation_history[phone_number])
-
-    # Conditionally append the user's message
-    if message_text is not None:
-        messages.append({"role": "user", "content": message_text})
+    messages.append({"role": "user", "content": message_text})
 
     chat_completion_kwargs = {
         "model": model,
@@ -184,10 +175,7 @@ async def generate_response(
         messages = [
             {"role": "system", "content": system_prompt_formatted}
         ] + await conversation_history[phone_number]
-
-        # Conditionally append the user's message after tool execution
-        if message_text is not None:
-            messages.append({"role": "user", "content": message_text})
+        messages.append({"role": "user", "content": message_text})
 
         response = await openai_client.chat.completions.create(
             model=model,
