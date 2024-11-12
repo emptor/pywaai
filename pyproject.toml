@@ -12,7 +12,7 @@ include = ["pywa*", "pywai*"]
 exclude = ["tests*"]
 
 [project]
-name = "pywai"
+name = "pywaai"
 description = "Python AI wrapper for the WhatsApp Cloud API"
 dynamic = ["version", "readme", "dependencies"]
 license = { text = "MIT" }
