@@ -3,6 +3,11 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+
+### 0.0.4 (2024-11-18)
+
+- Move init_db off asyncio.run
+
 ### 0.0.3 (2024-11-12) **Latest**
 
 - Add message_text and user_name to send_message
