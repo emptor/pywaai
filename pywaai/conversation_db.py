@@ -29,7 +29,11 @@ class ConnectionPool:
         self.encrypted = encrypted
         self.all_connections = set()
         for _ in range(pool_size):
-            conn = sqlcipher.connect(db_path) if encrypted else sqlite3.connect(db_path)
+            if encrypted:
+                conn = sqlcipher.connect(db_path)
+                conn.execute("PRAGMA key = '{}';".format(self.master_key))
+            else:
+                conn = sqlite3.connect(db_path, check_same_thread=False)
             self.pool.put_nowait(conn)
             self.all_connections.add(conn)
         logger.debug(f"Initialized ConnectionPool with {pool_size} connections")
@@ -74,7 +78,6 @@ class ConversationHistory:
         self.db_path = db_path
         self.message_cache = TTLCache(maxsize=cache_maxsize, ttl=cache_ttl)
         self.pool = ConnectionPool(db_path, pool_size)
-        asyncio.run(self.init_db())  # Initialize the database synchronously
 
     async def init_db(self):
         conn = await self.pool.get_connection()
