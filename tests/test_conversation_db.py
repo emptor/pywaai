@@ -6,7 +6,8 @@ from pywaai.conversation_db import (
     ConversationHistory,
     ConversationManager,
     Conversation,
-    Base
+    Base,
+    EncryptedConversationHistory
 )
 
 @pytest.fixture(scope="function")
@@ -34,6 +35,39 @@ async def test_instances():
     yield pool, history, manager
 
     # Teardown phase
+    await pool.close_all()
+    await history.pool.close_all()
+    await manager.history.pool.close_all()
+
+
+@pytest.fixture(scope="function")
+async def encrypted_test_instances():
+    """Setup encrypted test instances."""
+    db_path = "file::memory:?cache=shared"
+    # Using a 32-byte key (256 bits) which is valid for AESGCM
+    master_key = "x" * 32  # 32 bytes for the master key
+    salt_master_key = "y" * 16  # 16 bytes for the salt
+    
+    pool = ConnectionPool(db_path, pool_size=2)
+    history = EncryptedConversationHistory(
+        db_path=db_path,
+        pool_size=2,
+        master_key=master_key,
+        salt_master_key=salt_master_key
+    )
+    manager = ConversationManager(db_path=db_path, pool_size=2, history=history)
+
+    await manager.init_db()
+
+    session = await pool.get_connection()
+    try:
+        Base.metadata.drop_all(pool.engine)
+        Base.metadata.create_all(pool.engine)
+    finally:
+        await pool.release_connection(session)
+
+    yield pool, history, manager
+
     await pool.close_all()
     await history.pool.close_all()
     await manager.history.pool.close_all()
@@ -182,3 +216,139 @@ class TestConversationManager:
             changes = await run_test()
             assert len(changes) == 1
             assert changes[0]["content"] == "Hello"
+
+
+@pytest.mark.asyncio
+class TestEncryptedConversationHistory:
+    async def test_message_encryption_decryption(self, encrypted_test_instances):
+        """Test that messages are properly encrypted and decrypted."""
+        async for _, history, manager in encrypted_test_instances:
+            phone_number = "+1234567890"
+            conversation = await manager.create_conversation(phone_number)
+            
+            original_message = {
+                "role": "user",
+                "content": "This is a secret message",
+                "metadata": {"timestamp": "2023-01-01T00:00:00"}
+            }
+            
+            # Test encryption
+            encrypted = history._encrypt_message(original_message)
+            assert encrypted != original_message
+            assert "encrypted" in encrypted  # Check for encrypted content
+            assert "nonce" in encrypted     # Check for nonce
+            assert isinstance(encrypted["encrypted"], str)  # Should be base64 encoded
+            assert isinstance(encrypted["nonce"], str)      # Should be base64 encoded
+            
+            # Test decryption
+            decrypted = history._decrypt_message(encrypted)
+            assert decrypted == original_message
+
+    async def test_append_and_read_encrypted(self, encrypted_test_instances):
+        """Test appending and reading encrypted messages."""
+        async for _, history, manager in encrypted_test_instances:
+            phone_number = "+1234567890"
+            conversation = await manager.create_conversation(phone_number)
+            
+            message = {
+                "role": "user",
+                "content": "Secret message 1",
+                "metadata": {"timestamp": "2023-01-01T00:00:00"}
+            }
+            
+            await history.append(phone_number, message, conversation.conversation_id)
+            messages = await history.read(phone_number, conversation.conversation_id)
+            
+            assert len(messages) == 1
+            assert messages[0]["content"] == message["content"]
+            assert messages[0]["role"] == message["role"]
+            assert messages[0]["metadata"] == message["metadata"]
+
+    async def test_watch_encrypted_conversation(self, encrypted_test_instances):
+        """Test watching encrypted conversation changes."""
+        async for _, history, manager in encrypted_test_instances:
+            phone_number = "+1234567890"
+            conversation = await manager.create_conversation(phone_number)
+            
+            # Start watching the conversation
+            messages = []
+            async def watch_and_collect():
+                async for message in history.watch(phone_number, conversation.conversation_id):
+                    messages.append(message)
+            
+            watch_task = asyncio.create_task(watch_and_collect())
+            
+            # Give the watch task time to start
+            await asyncio.sleep(0.1)
+            
+            # Add messages with timestamps
+            now = datetime.utcnow().isoformat()
+            message1 = {
+                "role": "user",
+                "content": "Secret 1",
+                "timestamp": now
+            }
+            await history.append(phone_number, message1, conversation.conversation_id)
+            
+            # Wait a bit before sending the second message
+            await asyncio.sleep(0.1)
+            now = datetime.utcnow().isoformat()
+            message2 = {
+                "role": "assistant",
+                "content": "Secret 2",
+                "timestamp": now
+            }
+            await history.append(phone_number, message2, conversation.conversation_id)
+            
+            # Wait for messages to be processed and session to refresh
+            await asyncio.sleep(1.5)  # Wait longer than the refresh interval
+            
+            # Cancel the watch task
+            watch_task.cancel()
+            try:
+                await watch_task
+            except asyncio.CancelledError:
+                pass
+            
+            # Verify messages
+            assert len(messages) >= 2, f"Expected at least 2 messages, got {len(messages)}"
+            assert messages[0]["content"] == "Secret 1"
+            assert messages[1]["content"] == "Secret 2"
+            # Verify timestamps are preserved
+            assert "timestamp" in messages[0]
+            assert "timestamp" in messages[1]
+
+    async def test_different_encryption_keys(self, encrypted_test_instances):
+        """Test that different encryption keys produce different results."""
+        async for _, history, _ in encrypted_test_instances:
+            # Create a second history instance with different keys
+            different_history = EncryptedConversationHistory(
+                db_path="file::memory:?cache=shared",
+                master_key="z" * 32,  # Different 32-byte key
+                salt_master_key="w" * 16  # Different 16-byte salt
+            )
+            
+            message = {"role": "user", "content": "Test message"}
+            
+            # Encrypt with both instances
+            encrypted1 = history._encrypt_message(message)
+            encrypted2 = different_history._encrypt_message(message)
+            
+            # The encrypted content should be different
+            assert encrypted1["encrypted"] != encrypted2["encrypted"]
+            
+            # But both should decrypt to the original message with their respective keys
+            decrypted1 = history._decrypt_message(encrypted1)
+            decrypted2 = different_history._decrypt_message(encrypted2)
+            assert decrypted1["content"] == message["content"]
+            assert decrypted2["content"] == message["content"]
+
+    async def _collect_messages(self, watch_iterator):
+        """Helper method to collect messages from watch iterator."""
+        messages = []
+        try:
+            async for message in watch_iterator:
+                messages.append(message)
+        except asyncio.CancelledError:
+            pass
+        return messages

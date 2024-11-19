@@ -243,11 +243,11 @@ class EncryptedConversationHistory(ConversationHistory):
         
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
-            length=32,
+            length=32,  # 256 bits
             salt=salt_master_key.encode(),
             iterations=100000,
         )
-        key = b64encode(kdf.derive(master_key.encode()))
+        key = kdf.derive(master_key.encode())  # Use raw bytes, not base64 encoded
         return AESGCM(key)
 
     def _encrypt_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
