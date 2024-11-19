@@ -49,3 +49,8 @@ logfire = ["logfire"]
 
 [tool.ruff.lint]
 ignore = ["E731", "F401", "E402", "F405"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+addopts = "-v"
+testpaths = ["tests"]
