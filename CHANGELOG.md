@@ -3,6 +3,10 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+### 0.0.6 (2024-11-25)
+
+- Replace ulid import
+
 ### 0.0.5 (2024-11-24)
 
 - Add ConversationManager
