@@ -3,6 +3,11 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+### 0.0.5 (2024-11-24)
+
+- Add ConversationManager
+- Change to SQLAlchemy for ORM
+- Add test_conversation_db
 
 ### 0.0.4 (2024-11-18)
 
