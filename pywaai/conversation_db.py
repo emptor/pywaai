@@ -6,7 +6,8 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any, AsyncIterator
 from datetime import datetime
-from ulid import ULID
+import time
+import secrets
 from base64 import b64encode, b64decode
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -15,6 +16,32 @@ import json
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy import desc, create_engine, QueuePool
 from .models import ConversationDB, Base
+
+
+def generate_ulid() -> str:
+    """Generate a ULID (Universally Unique Lexicographically Sortable Identifier).
+
+    Returns:
+        A 26-character string containing timestamp and randomness components.
+    """
+    # Get current timestamp in milliseconds
+    timestamp = int(time.time() * 1000)
+
+    # Convert timestamp to base32 (first 10 chars)
+    # We use a custom alphabet that's compatible with ULID spec
+    alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+    timestamp_str = ""
+    for _ in range(10):
+        timestamp_str = alphabet[timestamp & 31] + timestamp_str
+        timestamp = timestamp >> 5
+
+    # Generate 16 random characters for the randomness component
+    randomness = ""
+    for _ in range(16):
+        randomness += alphabet[secrets.randbelow(32)]
+
+    return timestamp_str + randomness
+
 
 try:
     from loguru import logger
@@ -60,12 +87,12 @@ class ConnectionPool:
                 session = self.Session()
                 self.all_sessions.append(session)
                 return session
-            
+
             # Try to find a session that's not in use
             for session in self.all_sessions:
                 if not session.in_transaction():
                     return session
-            
+
             # If all sessions are in use, create a new one
             session = self.Session()
             self.all_sessions.append(session)
@@ -75,7 +102,7 @@ class ConnectionPool:
         """Release a connection back to the pool."""
         if session.in_transaction():
             session.rollback()
-        
+
         async with self._lock:
             if len(self.all_sessions) > self.pool_size:
                 session.close()
@@ -145,7 +172,7 @@ class ConversationHistory:
             if conversation_id:
                 query = query.filter(ConversationDB.conversation_id == conversation_id)
             conversations = query.all()
-            
+
             all_messages = []
             for conversation in conversations:
                 messages = json.loads(conversation.messages)
@@ -177,7 +204,10 @@ class ConversationHistory:
                 if conversation.updated_at > last_check:
                     messages = json.loads(conversation.messages)
                     for message in messages:
-                        if "timestamp" not in message or message["timestamp"] > last_check:
+                        if (
+                            "timestamp" not in message
+                            or message["timestamp"] > last_check
+                        ):
                             yield message
                     last_check = conversation.updated_at
                 await asyncio.sleep(1)
@@ -232,15 +262,19 @@ class EncryptedConversationHistory(ConversationHistory):
         super().__init__(db_path, pool_size)
         self.cipher = self._init_cipher(master_key, salt_master_key)
 
-    def _init_cipher(self, master_key: Optional[str], salt_master_key: Optional[str]) -> AESGCM:
+    def _init_cipher(
+        self, master_key: Optional[str], salt_master_key: Optional[str]
+    ) -> AESGCM:
         """Initialize the encryption cipher."""
         if not master_key:
             master_key = os.environ.get("MASTER_KEY")
         if not salt_master_key:
             salt_master_key = os.environ.get("SALT_MASTER_KEY")
         if not master_key or not salt_master_key:
-            raise ValueError("Master key and salt master key are required for encryption")
-        
+            raise ValueError(
+                "Master key and salt master key are required for encryption"
+            )
+
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,  # 256 bits
@@ -295,9 +329,11 @@ class EncryptedConversationHistory(ConversationHistory):
 from dataclasses import dataclass
 from datetime import datetime
 
+
 @dataclass
 class Conversation:
     """Represents a single conversation."""
+
     conversation_id: str
     phone_number: str
     messages: List[Dict[str, Any]]
@@ -315,7 +351,9 @@ class ConversationManager:
         history: Optional[ConversationHistory] = None,
     ):
         """Initialize the conversation manager."""
-        self.history = history or ConversationHistory(db_path=db_path, pool_size=pool_size)
+        self.history = history or ConversationHistory(
+            db_path=db_path, pool_size=pool_size
+        )
 
     async def init_db(self):
         """Initialize the database."""
@@ -323,7 +361,7 @@ class ConversationManager:
 
     async def create_conversation(self, phone_number: str) -> Conversation:
         """Create a new conversation."""
-        conversation_id = str(ULID())
+        conversation_id = generate_ulid()
         now = datetime.utcnow()
         session = await self.history.pool.get_connection()
         try:
