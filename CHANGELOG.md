@@ -3,6 +3,10 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+### 0.0.7 (2024-11-30)
+
+- Add get_all_phone_numbers to ConversationDB
+
 ### 0.0.6 (2024-11-25)
 
 - Replace ulid import

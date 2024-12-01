@@ -453,3 +453,20 @@ class ConversationManager:
         """Watch for changes in a conversation."""
         async for message in self.history.watch(phone_number, conversation_id):
             yield message
+
+    async def get_all_phone_numbers(self) -> List[str]:
+        """Get all unique phone numbers that have conversations.
+
+        Returns:
+            List[str]: A list of unique phone numbers.
+        """
+        session = await self.history.pool.get_connection()
+        try:
+            # Query for distinct phone numbers
+            phone_numbers = [
+                row[0]
+                for row in session.query(ConversationDB.phone_number).distinct().all()
+            ]
+            return phone_numbers
+        finally:
+            await self.history.pool.release_connection(session)
