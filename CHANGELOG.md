@@ -3,6 +3,10 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+### 0.0.8 (2024-12-18)
+
+- Use conversation manager in ai_utils
+
 ### 0.0.7 (2024-11-30)
 
 - Add get_all_phone_numbers to ConversationDB
