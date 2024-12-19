@@ -5,7 +5,7 @@ from typing import List
 import os
 from pywa import WhatsApp
 from typing import List, Dict, Optional, Type
-from .conversation_db import ConversationHistory
+from .conversation_db import ConversationManager
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from openai import AsyncOpenAI
@@ -13,12 +13,14 @@ from instructor import OpenAISchema
 
 try:
     import logfire as logger
+
     logger.configure()
 except ImportError:
     try:
         from loguru import logger
     except ImportError:
         import logging
+
         logger = logging.getLogger(__name__)
 
 shortener_tokens_used = 0
@@ -107,8 +109,93 @@ async def execute_tools(tool_calls, tool_functions):
     return results if results else None
 
 
+class LocalOrRemoteConversation:
+    """
+    A helper class to abstract over using a local ConversationManager
+    or a remote conversation API.
+    """
+
+    def __init__(
+        self,
+        phone_number: str,
+        use_remote_api: bool = False,
+        remote_base_url: Optional[str] = None,
+        conversation_manager: Optional[ConversationManager] = None,
+    ):
+        self.phone_number = phone_number
+        self.use_remote_api = use_remote_api
+        self.remote_base_url = remote_base_url
+        self.conversation_manager = conversation_manager
+        self.conversation_id = None
+
+    async def _get_or_create_conversation_id_local(self):
+        conv = await self.conversation_manager.get_latest_conversation(
+            self.phone_number
+        )
+        if not conv:
+            # Create new conversation
+            conv = await self.conversation_manager.create_conversation(
+                self.phone_number
+            )
+        return conv.conversation_id
+
+    async def _get_or_create_conversation_id_remote(self):
+        async with httpx.AsyncClient() as client:
+            url = f"{self.remote_base_url}/conversations/{self.phone_number}/latest"
+            r = await client.get(url)
+            if r.status_code == 404:
+                # Create a new conversation
+                create_url = f"{self.remote_base_url}/conversations/{self.phone_number}"
+                c = await client.post(create_url)
+                c.raise_for_status()
+                return c.json()["conversation_id"]
+            else:
+                r.raise_for_status()
+                return r.json()["conversation_id"]
+
+    async def get_or_create_conversation_id(self):
+        if self.conversation_id:
+            return self.conversation_id
+
+        if self.use_remote_api:
+            self.conversation_id = await self._get_or_create_conversation_id_remote()
+        else:
+            self.conversation_id = await self._get_or_create_conversation_id_local()
+        return self.conversation_id
+
+    async def get_messages(self) -> List[Dict[str, str]]:
+        cid = await self.get_or_create_conversation_id()
+        if self.use_remote_api:
+            async with httpx.AsyncClient() as client:
+                url = f"{self.remote_base_url}/conversations/{self.phone_number}/{cid}/messages"
+                r = await client.get(url)
+                r.raise_for_status()
+                return r.json()
+        else:
+            return await self.conversation_manager.get_messages(self.phone_number, cid)
+
+    async def append_message(self, message: Dict[str, str]):
+        cid = await self.get_or_create_conversation_id()
+        if self.use_remote_api:
+            async with httpx.AsyncClient() as client:
+                url = f"{self.remote_base_url}/conversations/{self.phone_number}/{cid}/messages"
+                r = await client.post(url, json=message)
+                r.raise_for_status()
+        else:
+            await self.conversation_manager.add_message(self.phone_number, message, cid)
+
+    async def append_tool(self, tool_call: dict, tool_content: str):
+        """Append tool calls and tool responses to the conversation."""
+        # tool_call is like {"role": "assistant", "tool_calls": [tool_call_data]}
+        # tool_content is from the tool response
+        await self.append_message(tool_call)
+        # Append tool result message
+        # We store tool calls as {"role":"tool", "content": tool_content}
+        # If you have a different schema for that, adjust accordingly
+        await self.append_message({"role": "tool", "content": tool_content})
+
+
 async def generate_response(
-    conversation_history: ConversationHistory,
     phone_number: str,
     message_text: str,
     user_name: str,
@@ -118,10 +205,35 @@ async def generate_response(
     max_message_chars: int = 300,
     openai_client: AsyncOpenAI = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY")),
     tool_functions: Optional[List[Type[OpenAISchema]]] = None,
+    use_remote_api: bool = False,
+    remote_base_url: Optional[str] = None,
+    conversation_manager: Optional[ConversationManager] = None,
 ) -> List[Dict[str, str]]:
     """
-    Requests a response from OpenAI based on the input message and conversation history.
+    Generate a response from the OpenAI model using either:
+      - a local conversation database via ConversationManager
+      - a remote conversation api
+
+    If use_remote_api=True, remote_base_url must be provided.
+    Otherwise conversation_manager must be provided.
     """
+    if use_remote_api and not remote_base_url:
+        raise ValueError("remote_base_url must be provided if use_remote_api=True")
+    if not use_remote_api and not conversation_manager:
+        raise ValueError(
+            "conversation_manager must be provided if use_remote_api=False"
+        )
+
+    conv = LocalOrRemoteConversation(
+        phone_number=phone_number,
+        use_remote_api=use_remote_api,
+        remote_base_url=remote_base_url,
+        conversation_manager=conversation_manager,
+    )
+
+    # Append user message first
+    await conv.append_message({"role": "user", "content": message_text})
+
     current_time = datetime.now()
     local_time = current_time.astimezone(ZoneInfo(timezone))
     formatted_date = local_time.date().isoformat()
@@ -133,11 +245,13 @@ async def generate_response(
         + f" The user's name is: {user_name}."
     )
 
+    # Retrieve all conversation messages
+    messages_history = await conv.get_messages()
+
+    # Build the messages for openai
     messages = [
-        {"role": "system", "content": system_prompt_formatted},
-    ]
-    messages.extend(await conversation_history[phone_number])
-    messages.append({"role": "user", "content": message_text})
+        {"role": "system", "content": system_prompt_formatted}
+    ] + messages_history
 
     chat_completion_kwargs = {
         "model": model,
@@ -154,28 +268,22 @@ async def generate_response(
 
     response = await openai_client.chat.completions.create(**chat_completion_kwargs)
 
+    # Handle tool calls
     if response.choices[0].message.tool_calls:
         tool_calls = response.choices[0].message.tool_calls
         assistant_responses = await execute_tools(tool_calls, tool_functions)
 
         for i, tool_call in enumerate(tool_calls):
-            await conversation_history.append(
-                phone_number,
+            await conv.append_tool(
                 {"role": "assistant", "tool_calls": [tool_call.model_dump()]},
-            )
-            await conversation_history.append(
-                phone_number,
-                {
-                    "role": "tool",
-                    "content": assistant_responses[i],
-                    "tool_call_id": tool_call.id,
-                },
+                assistant_responses[i],
             )
 
+        # After tool calls, regenerate response
+        messages_history = await conv.get_messages()
         messages = [
             {"role": "system", "content": system_prompt_formatted}
-        ] + await conversation_history[phone_number]
-        messages.append({"role": "user", "content": message_text})
+        ] + messages_history
 
         response = await openai_client.chat.completions.create(
             model=model,
@@ -189,8 +297,17 @@ async def generate_response(
         else "I'm sorry, I couldn't retrieve the requested information."
     )
 
+    # Possibly shorten response if too long
     if len(content) > max_message_chars:
         shorter_responses = await get_shorter_responses(content)
-        return [{"role": "assistant", "content": msg} for msg in shorter_responses]
+        # Append each shorter response to conversation and return
+        final_responses = []
+        for msg in shorter_responses:
+            response_msg = {"role": "assistant", "content": msg}
+            await conv.append_message(response_msg)
+            final_responses.append(response_msg)
+        return final_responses
     else:
-        return [{"role": "assistant", "content": content}]
+        response_msg = {"role": "assistant", "content": content}
+        await conv.append_message(response_msg)
+        return [response_msg]
