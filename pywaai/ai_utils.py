@@ -10,6 +10,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from openai import AsyncOpenAI
 from instructor import OpenAISchema
+import httpx
 
 try:
     import logfire as logger
