@@ -3,7 +3,7 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
-### 0.0.8 (2024-12-18)
+### 0.0.9 (2024-12-18)
 
 - Use conversation manager in ai_utils
 
