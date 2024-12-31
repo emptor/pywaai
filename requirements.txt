@@ -5,3 +5,5 @@ instructor>=1.6.3
 pydantic>=2.8.2
 cachetools>=5.5.0
 sqlalchemy>=2.0.27
+cryptography>=42.0.2
+authlib>=1.3.0

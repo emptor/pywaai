@@ -43,7 +43,6 @@ classifiers = [
 [project.optional-dependencies]
 flask = ["flask[async]"]
 fastapi = ["fastapi[standard]"]
-cryptography = ["cryptography", "authlib"]
 loguru = ["loguru"]
 logfire = ["logfire"]
 
