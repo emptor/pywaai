@@ -3,6 +3,10 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+### 0.0.10 (2024-01-01)
+
+- Add Auth0 M2M authentication in LocalOrRemoteConversation for remote conversation API calls
+
 ### 0.0.9 (2024-12-18)
 
 - Use conversation manager in ai_utils

@@ -11,6 +11,31 @@ from zoneinfo import ZoneInfo
 from openai import AsyncOpenAI
 from instructor import OpenAISchema
 import httpx
+from authlib.integrations.httpx_client import AsyncOAuth2Client
+
+async def get_access_token() -> str:
+    """
+    Get an access token from Auth0 for M2M authentication.
+    
+    Returns:
+        str: The access token for making authenticated requests
+    """
+    AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
+    CONVERSATIONS_CLIENT_ID = os.getenv("CONVERSATIONS_CLIENT_ID")
+    CONVERSATIONS_CLIENT_SECRET = os.getenv("CONVERSATIONS_CLIENT_SECRET")
+    AUDIENCE = os.getenv("AUDIENCE")
+    
+    async with AsyncOAuth2Client(
+        client_id=CONVERSATIONS_CLIENT_ID,
+        client_secret=CONVERSATIONS_CLIENT_SECRET,
+        token_endpoint=f"https://{AUTH0_DOMAIN}/oauth/token"
+    ) as oauth:
+        token = await oauth.fetch_token(
+            f"https://{AUTH0_DOMAIN}/oauth/token",
+            grant_type="client_credentials",
+            audience=AUDIENCE
+        )
+        return token["access_token"]
 
 try:
     import logfire as logger
@@ -141,13 +166,15 @@ class LocalOrRemoteConversation:
         return conv.conversation_id
 
     async def _get_or_create_conversation_id_remote(self):
+        token = await get_access_token()
+        headers = {"Authorization": f"Bearer {token}"}
         async with httpx.AsyncClient() as client:
             url = f"{self.remote_base_url}/conversations/{self.phone_number}/latest"
-            r = await client.get(url)
+            r = await client.get(url, headers=headers)
             if r.status_code == 404:
                 # Create a new conversation
                 create_url = f"{self.remote_base_url}/conversations/{self.phone_number}"
-                c = await client.post(create_url)
+                c = await client.post(create_url, headers=headers)
                 c.raise_for_status()
                 return c.json()["conversation_id"]
             else:
@@ -167,9 +194,11 @@ class LocalOrRemoteConversation:
     async def get_messages(self) -> List[Dict[str, str]]:
         cid = await self.get_or_create_conversation_id()
         if self.use_remote_api:
+            token = await get_access_token()
+            headers = {"Authorization": f"Bearer {token}"}
             async with httpx.AsyncClient() as client:
                 url = f"{self.remote_base_url}/conversations/{self.phone_number}/{cid}/messages"
-                r = await client.get(url)
+                r = await client.get(url, headers=headers)
                 r.raise_for_status()
                 return r.json()
         else:
@@ -178,9 +207,11 @@ class LocalOrRemoteConversation:
     async def append_message(self, message: Dict[str, str]):
         cid = await self.get_or_create_conversation_id()
         if self.use_remote_api:
+            token = await get_access_token()
+            headers = {"Authorization": f"Bearer {token}"}
             async with httpx.AsyncClient() as client:
                 url = f"{self.remote_base_url}/conversations/{self.phone_number}/{cid}/messages"
-                r = await client.post(url, json=message)
+                r = await client.post(url, headers=headers, json=message)
                 r.raise_for_status()
         else:
             await self.conversation_manager.add_message(self.phone_number, message, cid)
