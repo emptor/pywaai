@@ -23,7 +23,7 @@ async def get_access_token() -> str:
     AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
     AUTH0_APP_CLIENT_ID = os.getenv("AUTH0_APP_CLIENT_ID")
     AUTH0_APP_CLIENT_SECRET = os.getenv("AUTH0_APP_CLIENT_SECRET")
-    AUDIENCE_IDENTIFIER = os.getenv("AUDIENCE_IDENTIFIER")
+    AUDIENCE_IDENTIFIER = os.getenv("CONVERSATIONS_AUDIENCE_IDENTIFIER")
     
     async with AsyncOAuth2Client(
         client_id=AUTH0_APP_CLIENT_ID,
