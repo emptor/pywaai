@@ -21,19 +21,19 @@ async def get_access_token() -> str:
         str: The access token for making authenticated requests
     """
     AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
-    CONVERSATIONS_CLIENT_ID = os.getenv("CONVERSATIONS_CLIENT_ID")
-    CONVERSATIONS_CLIENT_SECRET = os.getenv("CONVERSATIONS_CLIENT_SECRET")
-    AUDIENCE = os.getenv("AUDIENCE")
+    AUTH0_APP_CLIENT_ID = os.getenv("AUTH0_APP_CLIENT_ID")
+    AUTH0_APP_CLIENT_SECRET = os.getenv("AUTH0_APP_CLIENT_SECRET")
+    AUDIENCE_IDENTIFIER = os.getenv("AUDIENCE_IDENTIFIER")
     
     async with AsyncOAuth2Client(
-        client_id=CONVERSATIONS_CLIENT_ID,
-        client_secret=CONVERSATIONS_CLIENT_SECRET,
+        client_id=AUTH0_APP_CLIENT_ID,
+        client_secret=AUTH0_APP_CLIENT_SECRET,
         token_endpoint=f"https://{AUTH0_DOMAIN}/oauth/token"
     ) as oauth:
         token = await oauth.fetch_token(
             f"https://{AUTH0_DOMAIN}/oauth/token",
             grant_type="client_credentials",
-            audience=AUDIENCE
+            audience=AUDIENCE_IDENTIFIER
         )
         return token["access_token"]
 

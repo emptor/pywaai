@@ -3,7 +3,11 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
-### 0.0.10 (2024-01-01)
+### 0.0.11 (2024-12-31)
+
+- Change env vars names for auth0
+
+### 0.0.10 (2024-12-31)
 
 - Add Auth0 M2M authentication in LocalOrRemoteConversation for remote conversation API calls
 
