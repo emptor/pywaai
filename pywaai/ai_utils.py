@@ -154,6 +154,14 @@ class LocalOrRemoteConversation:
         self.conversation_manager = conversation_manager
         self.conversation_id = None
 
+    async def _get_cached_token(self) -> str:
+        """Get a cached token or fetch a new one if expired/missing."""
+        current_time = datetime.now().timestamp()
+        if not self._access_token or not self._token_expiry or current_time >= self._token_expiry:
+            self._access_token = await get_access_token()
+            self._token_expiry = current_time + 86400  # Token valid for 24 hours
+        return self._access_token
+
     async def _get_or_create_conversation_id_local(self):
         conv = await self.conversation_manager.get_latest_conversation(
             self.phone_number
@@ -194,7 +202,7 @@ class LocalOrRemoteConversation:
     async def get_messages(self) -> List[Dict[str, str]]:
         cid = await self.get_or_create_conversation_id()
         if self.use_remote_api:
-            token = await get_access_token()
+            token = await self._get_cached_token()
             headers = {"Authorization": f"Bearer {token}"}
             async with httpx.AsyncClient() as client:
                 url = f"{self.remote_base_url}/conversations/{self.phone_number}/{cid}/messages"
@@ -207,7 +215,7 @@ class LocalOrRemoteConversation:
     async def append_message(self, message: Dict[str, str]):
         cid = await self.get_or_create_conversation_id()
         if self.use_remote_api:
-            token = await get_access_token()
+            token = await self._get_cached_token()
             headers = {"Authorization": f"Bearer {token}"}
             async with httpx.AsyncClient() as client:
                 url = f"{self.remote_base_url}/conversations/{self.phone_number}/{cid}/messages"
