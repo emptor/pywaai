@@ -240,7 +240,17 @@ class LocalOrRemoteConversation:
         await self.append_message(tool_call)
         
         # Get the tool_call_id from the tool_call
-        tool_call_id = tool_call["tool_calls"][0]["id"]
+        # The structure should be properly accessed based on the model_dump() output
+        if "tool_calls" in tool_call and isinstance(tool_call["tool_calls"], list) and len(tool_call["tool_calls"]) > 0:
+            # Extract ID from the correct location in the structure
+            if "id" in tool_call["tool_calls"][0]:
+                tool_call_id = tool_call["tool_calls"][0]["id"]
+            else:
+                logger.error(f"Cannot find id in tool_calls: {tool_call}")
+                raise ValueError("Missing id in tool_call structure")
+        else:
+            logger.error(f"Unexpected tool_call structure: {tool_call}")
+            raise ValueError("Unexpected tool_call structure")
         
         # Append tool result message with the tool_call_id
         await self.append_message({
@@ -248,7 +258,6 @@ class LocalOrRemoteConversation:
             "content": tool_content,
             "tool_call_id": tool_call_id
         })
-
 async def generate_response(
     phone_number: str,
     message_text: str,
