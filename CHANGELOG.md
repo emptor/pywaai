@@ -3,6 +3,10 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+### 0.0.14 (2025-03-08)
+
+- Add tool_call_id to tool responses
+
 ### 0.0.13 (2025-03-08)
 
 - Change execute_tools to handle both coroutines and non-coroutines

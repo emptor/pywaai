@@ -233,16 +233,21 @@ class LocalOrRemoteConversation:
         else:
             await self.conversation_manager.add_message(self.phone_number, message, cid)
 
-    async def append_tool(self, tool_call: dict, tool_content: str):
-        """Append tool calls and tool responses to the conversation."""
-        # tool_call is like {"role": "assistant", "tool_calls": [tool_call_data]}
-        # tool_content is from the tool response
-        await self.append_message(tool_call)
-        # Append tool result message
-        # We store tool calls as {"role":"tool", "content": tool_content}
-        # If you have a different schema for that, adjust accordingly
-        await self.append_message({"role": "tool", "content": tool_content})
-
+async def append_tool(self, tool_call: dict, tool_content: str):
+    """Append tool calls and tool responses to the conversation."""
+    # tool_call is like {"role": "assistant", "tool_calls": [tool_call_data]}
+    # tool_content is from the tool response
+    await self.append_message(tool_call)
+    
+    # Get the tool_call_id from the tool_call
+    tool_call_id = tool_call["tool_calls"][0]["id"]
+    
+    # Append tool result message with the tool_call_id
+    await self.append_message({
+        "role": "tool", 
+        "content": tool_content,
+        "tool_call_id": tool_call_id
+    })
 
 async def generate_response(
     phone_number: str,
