@@ -3,6 +3,10 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+### 0.0.15 (2025-03-08)
+
+- Add tool_call_id to tool responses (fix)
+
 ### 0.0.14 (2025-03-08)
 
 - Add tool_call_id to tool responses
