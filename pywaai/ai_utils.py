@@ -11,7 +11,6 @@ from zoneinfo import ZoneInfo
 from openai import AsyncOpenAI
 from instructor import OpenAISchema
 import httpx
-from authlib.integrations.httpx_client import AsyncOAuth2Client
 
 async def get_access_token() -> str:
     """
@@ -25,17 +24,21 @@ async def get_access_token() -> str:
     AUTH0_APP_CLIENT_SECRET = os.getenv("AUTH0_APP_CLIENT_SECRET")
     AUDIENCE_IDENTIFIER = os.getenv("CONVERSATIONS_AUDIENCE_IDENTIFIER")
     
-    async with AsyncOAuth2Client(
-        client_id=AUTH0_APP_CLIENT_ID,
-        client_secret=AUTH0_APP_CLIENT_SECRET,
-        token_endpoint=f"https://{AUTH0_DOMAIN}/oauth/token"
-    ) as oauth:
-        token = await oauth.fetch_token(
+    payload = {
+        "client_id": AUTH0_APP_CLIENT_ID,
+        "client_secret": AUTH0_APP_CLIENT_SECRET,
+        "audience": AUDIENCE_IDENTIFIER,
+        "grant_type": "client_credentials"
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
             f"https://{AUTH0_DOMAIN}/oauth/token",
-            grant_type="client_credentials",
-            audience=AUDIENCE_IDENTIFIER
+            json=payload,
+            headers={"Content-Type": "application/json"}
         )
-        return token["access_token"]
+        response.raise_for_status()
+        return response.json()["access_token"]
 
 try:
     import logfire as logger
@@ -124,16 +127,30 @@ async def send_message(wa_client: WhatsApp, phone_number: str, message: str = ""
             logger.info(f"SENT,{phone_number},{response['content']}")
 
 
+import asyncio
+import json
+
 async def execute_tools(tool_calls, tool_functions):
     results = []
     for call in tool_calls:
         for func in tool_functions:
             if func.__name__ == call.function.name:
-                args = eval(call.function.arguments)
-                result = func(**args).run()
+                args = json.loads(call.function.arguments)
+                tool_instance = func(**args)
+                
+                # Call run() and get the result or coroutine
+                potential_coroutine = tool_instance.run()
+                
+                # Check if the result is a coroutine
+                if asyncio.iscoroutine(potential_coroutine):
+                    # If it's a coroutine, await it
+                    result = await potential_coroutine
+                else:
+                    # If it's not a coroutine, it's already the actual result
+                    result = potential_coroutine
+                    
                 results.append(result)
     return results if results else None
-
 
 class LocalOrRemoteConversation:
     """

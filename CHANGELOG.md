@@ -3,6 +3,10 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+### 0.0.13 (2025-03-08)
+
+- Change execute_tools to handle both coroutines and non-coroutines
+
 ### 0.0.12 (2025-03-07)
 
 - Add `delete_conversation` method to ConversationManager
