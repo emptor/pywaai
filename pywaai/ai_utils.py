@@ -245,9 +245,15 @@ class LocalOrRemoteConversation:
             # Extract ID from the correct location in the structure
             if "id" in tool_call["tool_calls"][0]:
                 tool_call_id = tool_call["tool_calls"][0]["id"]
+            elif "function" in tool_call["tool_calls"][0] and "id" in tool_call["tool_calls"][0]:
+                tool_call_id = tool_call["tool_calls"][0]["id"]
             else:
-                logger.error(f"Cannot find id in tool_calls: {tool_call}")
-                raise ValueError("Missing id in tool_call structure")
+                # Directly access the structure as OpenAI returns it
+                logger.debug(f"Tool call structure: {tool_call}")
+                tool_call_id = tool_call["tool_calls"][0].get("id", None)
+                if not tool_call_id:
+                    logger.error(f"Cannot find id in tool_calls: {tool_call}")
+                    raise ValueError("Missing id in tool_call structure")
         else:
             logger.error(f"Unexpected tool_call structure: {tool_call}")
             raise ValueError("Unexpected tool_call structure")
@@ -258,6 +264,7 @@ class LocalOrRemoteConversation:
             "content": tool_content,
             "tool_call_id": tool_call_id
         })
+
 async def generate_response(
     phone_number: str,
     message_text: str,
@@ -344,6 +351,7 @@ async def generate_response(
 
         # After tool calls, regenerate response
         messages_history = await conv.get_messages()
+        logger.info(f"Messages history: {messages_history}")
         messages = [
             {"role": "system", "content": system_prompt_formatted}
         ] + messages_history
