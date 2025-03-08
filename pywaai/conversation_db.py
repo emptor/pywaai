@@ -470,3 +470,25 @@ class ConversationManager:
             return phone_numbers
         finally:
             await self.history.pool.release_connection(session)
+            
+    async def delete_conversation(self, phone_number: str, conversation_id: str) -> bool:
+        """Delete a conversation.
+        
+        Args:
+            phone_number: The phone number associated with the conversation.
+            conversation_id: The ID of the conversation to delete.
+            
+        Returns:
+            bool: True if the conversation was deleted, False if it didn't exist.
+        """
+        session = await self.history.pool.get_connection()
+        try:
+            result = session.query(ConversationDB).filter(
+                ConversationDB.phone_number == phone_number,
+                ConversationDB.conversation_id == conversation_id
+            ).delete()
+            session.commit()
+            # Return True if at least one row was deleted
+            return result > 0
+        finally:
+            await self.history.pool.release_connection(session)

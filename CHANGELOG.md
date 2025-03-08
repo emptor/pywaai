@@ -3,6 +3,10 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+### 0.0.12 (2025-03-07)
+
+- Add `delete_conversation` method to ConversationManager
+
 ### 0.0.11 (2024-12-31)
 
 - Change env vars names for auth0
