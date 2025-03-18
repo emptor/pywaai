@@ -176,6 +176,7 @@ class Language(utils.StrEnum):
     SPANISH_ARG = "es_AR"
     SPANISH_SPA = "es_ES"
     SPANISH_MEX = "es_MX"
+    SPANISH_PER = "es_PE"
     SWAHILI = "sw"
     SWEDISH = "sv"
     TAMIL = "ta"

@@ -3,6 +3,10 @@
 
 > NOTE: pywai follows the [semver](https://semver.org/) versioning standard.
 
+### 0.0.18 (2025-03-17)
+
+- Add SPANISH_PER to the list of supported languages in template.py
+
 ### 0.0.17 (2025-03-08)
 
 - Add tool_call_id to tool responses (fix)
