@@ -7,3 +7,4 @@ cachetools>=5.5.0
 sqlalchemy>=2.0.27
 cryptography>=42.0.2
 authlib>=1.3.0
+pywa>=3.9.0,<4
